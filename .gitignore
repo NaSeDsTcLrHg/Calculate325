@@ -1,0 +1,35 @@
+# 构建产物
+Calculate325.exe
+tests/Calculate325-tests.exe
+*.pdb
+
+# 运行期数据
+history.txt
+favorites.txt
+patterns.txt
+seedmode.txt
+error.log
+*.tmp
+
+# 测试临时文件
+tests/.tmp/
+audit-test.txt
+out.txt
+
+# 个人/部署文件
+*.lnk
+*.cer
+*.mhtml
+PT/
+python-version/
+diag-*.txt
+math-one-*.txt
+nul.txt
+skin.txt
+
+# 编辑器
+.vs/
+.vscode/
+*.user
+Thumbs.db
+desktop.ini

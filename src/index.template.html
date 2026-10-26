@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>计算325 · Calculate325</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --ink: #1b2430;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --brand: #2563eb;
+    --brand-ink: #1d4ed8;
+    --ok: #16a34a;
+    --warn: #b45309;
+    --soft: #f8fafc;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+    --math: "Cambria Math", "Latin Modern Math", Cambria, Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 16px 64px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+  header h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: .5px; }
+  header .sub { color: var(--muted); margin: 0 0 4px; }
+  header .rule { color: var(--muted); font-size: 13px; }
+  code, .mono { font-family: var(--mono); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 20px; margin-top: 16px; box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  #target {
+    flex: 1 1 260px; min-width: 200px; padding: 12px 14px; font-size: 18px;
+    border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono);
+  }
+  #target:focus { outline: 2px solid #bfdbfe; border-color: var(--brand); }
+  button {
+    font: inherit; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button:hover { border-color: #cbd5e1; background: var(--soft); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+  button.primary:hover { background: var(--brand-ink); }
+  button:disabled { opacity: .55; cursor: default; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .chip {
+    padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+    background: #fff; color: var(--muted); font-size: 13px; cursor: pointer; font-family: var(--mono);
+  }
+  .chip:hover { color: var(--brand); border-color: #bfdbfe; background: #f0f6ff; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px;
+    padding: 3px 9px; border-radius: 999px; background: #ecfdf5; color: #15803d; border: 1px solid #bbf7d0;
+  }
+  .badge.gray { background: var(--soft); color: var(--muted); border-color: var(--line); }
+  .badge.warn { background: #fffbeb; color: var(--warn); border-color: #fde68a; }
+  .formula {
+    font-family: var(--math); font-size: 30px; line-height: 1.4; word-break: break-word;
+    margin: 6px 0 10px; padding: 14px 16px; background: var(--soft);
+    border: 1px solid var(--line); border-radius: 12px;
+  }
+  .formula .eq { color: var(--muted); margin: 0 6px; }
+  .digits { font-family: var(--mono); font-size: 13px; color: var(--muted); word-break: break-all; }
+  .alts { list-style: none; margin: 8px 0 0; padding: 0; }
+  .alts li {
+    display: flex; gap: 10px; align-items: baseline; justify-content: space-between;
+    padding: 7px 10px; border: 1px dashed var(--line); border-radius: 9px; margin-bottom: 6px;
+    font-family: var(--math); font-size: 17px; word-break: break-all;
+  }
+  .alts li button { padding: 3px 10px; font-size: 12px; font-family: system-ui, sans-serif; }
+  .notes { margin: 10px 0 0; padding-left: 18px; color: var(--warn); font-size: 13.5px; }
+  .stats { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .stat { background: var(--soft); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
+  .stat b { display: block; font-size: 17px; font-weight: 600; }
+  .stat span { color: var(--muted); font-size: 12.5px; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details .body { margin-top: 10px; color: #334155; }
+  details ul { margin: 6px 0 0; padding-left: 20px; }
+  .grid-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 12px; }
+  .grid-opts label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  select, input[type="number"] {
+    font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff;
+  }
+  .switches { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .switches label { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+  .fallback-box { border-color: #fde68a; background: #fffdf5; }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); }
+  footer { margin-top: 22px; color: var(--muted); font-size: 12.5px; text-align: center; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>计算325 <span class="muted" style="font-size:15px">Calculate325</span></h1>
+    <p class="sub">给定数字 <b>n</b>，用所选数字串的连续重复（<code>325325…</code> / <code>799799…</code> / <code>325799325799…</code> / <code>114514114514…</code>），插入运算符与括号，凑出一个结果正好等于 n 的算式。</p>
+    <p class="rule">数字串可多选：勾选的每一个都会各自算一遍，结果全部输出。数字顺序固定不可交换（可在高级选项里放开）；允许 <code>+ − × ÷</code>、括号、小数点、后缀阶乘。</p>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <label class="field" style="flex:1 1 260px">
+        目标数字 n
+        <input id="target" type="text" inputmode="decimal" value="325" placeholder="例如 325、1000、2025、3.25、-7" autocomplete="off">
+      </label>
+      <button id="go" class="primary" style="margin-top:18px">求解</button>
+    </div>
+    <div class="chips" id="examples"></div>
+
+    <div class="row" style="margin-top:14px;gap:10px;align-items:center">
+      <span class="muted" style="font-size:13px">数字串：</span>
+      <select id="patternSel">
+        <option value="325" selected>325</option>
+        <option value="799">799</option>
+        <option value="325799">325799</option>
+        <option value="114514">114514</option>
+        <option value="all">我全都要！</option>
+      </select>
+    </div>
+
+    <details>
+      <summary>高级选项</summary>
+      <div class="body">
+        <div class="grid-opts">
+          <label>最多用几个 325 块
+            <select id="maxBlocks">
+              <option value="1">1 块（3 位数字）</option>
+              <option value="2" selected>2 块（6 位数字）</option>
+              <option value="3">3 块（9 位数字，较慢）</option>
+              <option value="4">4 块（12 位数字，很慢）</option>
+            </select>
+          </label>
+          <label>数字顺序
+            <select id="orderMode">
+              <option value="fixed" selected>固定：325325…（默认）</option>
+              <option value="any">允许交换 3 / 2 / 5 的位置</option>
+            </select>
+          </label>
+          <label>阶乘参数上限（越大越慢）
+            <input id="factMax" type="number" min="0" max="20" value="12">
+          </label>
+        </div>
+        <div class="switches">
+          <label><input id="allowFactorial" type="checkbox" checked> 允许后缀阶乘 <code>!</code></label>
+          <label><input id="allowDecimal" type="checkbox" checked> 允许小数点</label>
+        </div>
+        <p class="muted" style="margin:10px 0 0;font-size:13px">
+          2 块通常 1 秒内出解；3 块以上属于深度搜索，可能触发时间预算（5 秒）而返回“未找到 + 保底构造”。
+        </p>
+      </div>
+    </details>
+  </div>
+
+  <div id="result"></div>
+
+  <div class="card">
+    <details open>
+      <summary>规则与算法说明</summary>
+      <div class="body">
+        <p style="margin:6px 0"><b>数字怎么用：</b>整条算式的数字（从左到右读出来）必须是所选<b>数字串</b>的重复，恰好用完整块：
+          选 <code>325</code> 时 1 块 = <code>325</code>、2 块 = <code>325325</code>；选 <code>114514</code> 时 1 块 = <code>114514</code>。
+          相邻数字之间不插运算符就拼成多位数，例如用 325 时 2 块可以写成 <code>325×3+25</code>（读作 3‑2‑5‑3‑2‑5）。</p>
+        <p style="margin:6px 0"><b>允许的操作：</b>加减乘除、括号、小数点（如 <code>3.25</code>、<code>32.5</code>）、后缀阶乘 <code>3!</code>、<code>(3+2)!</code>；
+          阶乘只作用于非负整数，参数不超过上面设定的上限。</p>
+        <p style="margin:6px 0"><b>“有了 3 就必须有 2、5”</b>：每一块都是完整的数字串，所以每个数字都会随整块一起用掉。</p>
+        <p style="margin:6px 0"><b>求解目标：</b>先最少块数 → 再最少用数个数 → 再最短算式。</p>
+        <p style="margin:6px 0"><b>算法：</b>区间动态规划（精确 BigInt 有理数，无浮点误差）。把数字串的每个子串、按“用了几个数”分轮，
+          像 <code>dp(子串, 用几个数)</code> 一样枚举所有切分与运算；轮数由小到大，命中即停。所有结果都再用一个独立的解析器复算一遍校验。</p>
+        <p style="margin:6px 0"><b>为什么有时直接给“保底构造”：</b>为了限制组合爆炸，中间结果有幅度/分母上限并按轮限量保留简单值；
+          在给定块数内没找到更短算式时，程序会用 <code>n = 数字串×q + r</code> 递归拼出一个<b>一定成立</b>的式子输出。</p>
+      </div>
+    </details>
+  </div>
+
+  <footer>计算325 · 单文件网页版 · 求解与校验均在本地浏览器完成，不联网</footer>
+</div>
+
+<script>
+/*__SOLVER__*/
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>
