@@ -1036,30 +1036,22 @@ namespace Calculate325
                 }
             }
 
-            // 行列式进乘方位置（L5）：10% 底为 =1 分数、指数为 2–6 阶行列式；
-            // 5% 行列式的乘方是行列式（det=1 的矩阵 ^ 2–6 阶行列式）。
-            // 值恒为 1，可塞到因子链任意位置（位置、阶数均按种子随机）。
+            // 行列式多样化（L5）：把链里 1–2 个因子的“显示方式”换成**等值**的行列式写法。
+            // 值不变（还是原来那个因子），所以配平不受影响；但行列式出现在
+            // 分子 / 分母 / 乘方 / 积分上限 / 求和上限 / 根号 等不同位置，且**绝不出现 1^n**。
             if (mix && level == 5)
             {
-                // 记录命中了哪种形态，避免“只命中 B”时误发成 A。
-                List<int> kinds = new List<int>();
-                if (Prob100(seed, 92) < 10) kinds.Add(0);   // A：底为 =1 分数，指数为 2–6 阶行列式
-                if (Prob100(seed, 94) < 5) kinds.Add(1);    // B：行列式的乘方是行列式（det^det）
-                if (kinds.Count > 0)
+                int take = 1 + (int)(Hash32(seed, 92) % 2u);
+                for (int k = 0; k < take && chain.Count > 0; k++)
                 {
-                    List<string> cl = new List<string>(codes.ToString().Split(','));
-                    for (int dp = 0; dp < kinds.Count; dp++)
-                    {
-                        int dpDims;
-                        XNode leaf = DetPowFactor(seed, 96 + dp * 3, kinds[dp], out dpDims);
-                        int pos = (int)(Hash32(seed, 97 + dp * 3) % (uint)(chain.Count + 1));
-                        chain.Insert(pos, leaf);
-                        dims += dpDims;
-                        if (pos >= cl.Count) cl.Add("1");
-                        else cl.Insert(pos, "1");
-                    }
-                    codes.Clear();
-                    for (int c = 0; c < cl.Count; c++) { if (c > 0) codes.Append(','); codes.Append(cl[c]); }
+                    int idx = (int)(Hash32(seed, 93 + k * 5) % (uint)chain.Count);
+                    Rat? v = chain[idx].Exact;
+                    if (!v.HasValue) continue;
+                    int dpDims;
+                    XNode rep = DetEncodedFactor(v.Value, seed, 97 + k * 7, out dpDims);
+                    if (rep == null) continue;
+                    chain[idx] = rep;
+                    dims += dpDims;
                 }
             }
 
@@ -1451,49 +1443,95 @@ namespace Calculate325
         }
 
         /// <summary>
-        /// “行列式出现在乘方位置”的 =1 因子：
-        ///   kind 0 —— 底是一个"不显眼的 1"（定积分/级数恒等于 1，不是 k/k 那种一眼化简），
-        ///             指数是 2–6 阶行列式：(\int_0^1 2x dx)^{\det A}；
-        ///   kind 1 —— 行列式的乘方是行列式：底是 det=1 的 2–6 阶矩阵，指数是 2–6 阶行列式：(\det U)^{\det B}。
-        /// 值恒等于 1（1 的任意整数次幂 = 1），不改变整体乘积。
+        /// 把一个因子 x 改写成**等值**的含行列式形式（值严格不变，交给配平）。
+        /// 行列式按种子落在不同位置：
+        ///   0 纯行列式                 det A = x
+        ///   1 求和上限                 Σ_{k=1}^{det A} 1 = x
+        ///   2 积分上限                 ∫_0^{det A} 1 dx = x
+        ///   3 分子分母都是行列式        det A / det B = x   （A = x·k，B = k）
+        ///   4 根号下                   √(det A) = x        （det A = x²，x≤20 时才用）
+        ///   5 底数（指数 1）            (det A)^1 = x
+        ///   6 积分被积函数             ∫_0^1 det A dx = x
+        /// 分数 x = n/d 时：分数分子/分母带行列式。
+        /// 绝不产生 1^k（因子值都 ≥2，且不做“行列式的 1 次幂套 1”这种事）。
         /// </summary>
-        static XNode DetPowFactor(string seed, int salt, int kind, out int dims)
+        static XNode DetEncodedFactor(Rat value, string seed, int salt, out int dims)
         {
             dims = 0;
-            int orderE = 2 + (int)(Hash32(seed, salt) % 5u);
-            long detE = 2 + (int)(Hash32(seed, salt + 1) % 60u);
-            long[,] mE = RandomDetMatrix(seed + salt, orderE, detE);
+            if (value.N.Sign <= 0) return null;
+            if (value.N > new BigInteger(500)) return null;          // 矩阵元素别爆
+            long n = (long)value.N, dlen = (long)value.D;
 
-            string bL, bT;
-            if (kind == 0)
+            if (dlen == 1)
             {
-                // 底必须"看起来是个真式子"，但值恰好是 1：定积分 ∫₀¹ kx^{k−1} dx = 1 / 几何级数 Σ(1/2)ⁿ = 1。
-                // 不用 k/k —— 那会一眼化简成 1^n。
-                switch ((int)(Hash32(seed, salt + 2) % 4u))
+                if (n < 2) return null;                              // 1 不编码成行列式，否则又是无意义的 1^k
+                int variant = (int)(Hash32(seed, salt) % 6u);
+                if (variant == 4 && n > 20) variant = 0;
+                switch (variant)
                 {
-                    case 0:
-                        bL = "\\int_{0}^{1}2x\\,dx"; bT = "(∫_0^1 2x dx)"; dims = 1; break;
                     case 1:
-                        bL = "\\int_{0}^{1}3x^{2}\\,dx"; bT = "(∫_0^1 3x² dx)"; dims = 1; break;
+                        {
+                            string m = "\\det" + MatrixTex(RandomDetMatrix(seed + salt, 2 + (int)(Hash32(seed, salt + 3) % 5u), n));
+                            return new XLeaf("\\left(\\sum_{k=1}^{" + m + "}1\\right)",
+                                "(Σ_{k=1}^{det[…]} 1)", value);
+                        }
                     case 2:
-                        bL = "\\int_{0}^{1}4x^{3}\\,dx"; bT = "(∫_0^1 4x³ dx)"; dims = 1; break;
+                        {
+                            string m = "\\det" + MatrixTex(RandomDetMatrix(seed + salt, 2 + (int)(Hash32(seed, salt + 3) % 5u), n));
+                            dims = 1;
+                            return new XLeaf("\\left(\\int_{0}^{" + m + "}1\\,dx\\right)",
+                                "(∫_0^{det[…]} 1 dx)", value);
+                        }
+                    case 3:
+                        {
+                            long kf = 2 + (int)(Hash32(seed, salt + 4) % 3u);        // 2..4
+                            if (n * kf > 400) break;
+                            string a = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 5, 2 + (int)(Hash32(seed, salt + 6) % 4u), n * kf));
+                            string b = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 7, 2 + (int)(Hash32(seed, salt + 8) % 4u), kf));
+                            return new XLeaf("\\left(\\frac{" + a + "}{" + b + "}\\right)",
+                                "(det[…] / det[…])", value);
+                        }
+                    case 4:
+                        {
+                            long sq = n * n;
+                            string a = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 9, 2 + (int)(Hash32(seed, salt + 10) % 4u), sq));
+                            return new XLeaf("\\left(\\sqrt{" + a + "}\\right)", "(√det[…])", value);
+                        }
+                    case 5:
+                        {
+                            string a = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 11, 2 + (int)(Hash32(seed, salt + 12) % 5u), n));
+                            return new XLeaf("\\left(" + a + "\\right)^{1}", "(det[…])¹", value);
+                        }
+                    case 6:
+                        {
+                            string a = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 13, 2 + (int)(Hash32(seed, salt + 14) % 5u), n));
+                            dims = 1;
+                            return new XLeaf("\\left(\\int_{0}^{1}" + a + "\\,dx\\right)",
+                                "(∫_0^1 det[…] dx)", value);
+                        }
                     default:
-                        bL = "\\sum_{n=1}^{\\infty}\\left(\\frac{1}{2}\\right)^{n}";
-                        bT = "(Σ_{n=1}^{∞} (1/2)ⁿ)";
-                        break;
+                        {
+                            string a = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 15, 2 + (int)(Hash32(seed, salt + 16) % 5u), n));
+                            return new XLeaf("\\left(" + a + "\\right)", "(det[…])", value);
+                        }
                 }
             }
             else
             {
-                int orderB = 2 + (int)(Hash32(seed, salt + 2) % 5u);
-                long[,] mB = RandomDetMatrix(seed + salt + 3, orderB, 1);
-                bL = "\\det" + MatrixTex(mB);
-                bT = "det" + MatrixBody(mB);
+                // 分数：分子或分母带行列式，值仍是 n/d
+                if (n > 400 || dlen > 60) return null;
+                if ((Hash32(seed, salt + 17) & 1u) == 0)
+                {
+                    string a = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 18, 2 + (int)(Hash32(seed, salt + 19) % 4u), n));
+                    return new XLeaf("\\left(\\frac{" + a + "}{" + dlen + "}\\right)", "(det[…] / " + dlen + ")", value);
+                }
+                if (dlen >= 2 && dlen <= 60)
+                {
+                    string b = "\\det" + MatrixTex(RandomDetMatrix(seed + salt + 20, 2 + (int)(Hash32(seed, salt + 21) % 4u), dlen));
+                    return new XLeaf("\\left(\\frac{" + n + "}{" + b + "}\\right)", "(" + n + " / det[…])", value);
+                }
             }
-
-            string eL = "\\det" + MatrixTex(mE);
-            string eT = "det" + MatrixBody(mE);
-            return new XLeaf("\\left(" + bL + "\\right)^{" + eL + "}", "(" + bT + ")^{" + eT + "}", Rats.One);
+            return null;
         }
 
         static string MatrixBody(long[,] a)
@@ -2420,9 +2458,10 @@ namespace Calculate325
                     }
                 case 4:
                     {
-                        // 平方和：a²+b²（325 = 1²+18² = 6²+17² = 10²+15² = 15²+10² = 17²+6² = 18²+1²）
-                        int[] aa = new int[] { 1, 18, 6, 17, 10, 15, 15, 10, 17, 6, 18, 1 };
-                        int i2 = (pick % 6) * 2;
+                        // 平方和：a²+b²（325 = 6²+17² = 10²+15² = 15²+10² = 17²+6²）
+                        // 不写 1²+18²：底数是 1 的幂没有意义（1² 就是 1）。
+                        int[] aa = new int[] { 6, 17, 10, 15, 15, 10, 17, 6 };
+                        int i2 = (pick % 4) * 2;
                         int p2 = aa[i2], q2 = aa[i2 + 1];
                         body = "(" + p2 + "²+" + q2 + "²)";
                         latex = "\\left(" + p2 + "^{2}+" + q2 + "^{2}\\right)";

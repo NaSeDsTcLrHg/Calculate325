@@ -419,6 +419,35 @@ check('随机窗口生成 80 行', lines.length === 80, 'lines=' + lines.length)
   for (const level of [1, 2, 3, 4]) {
     check(`随机窗口 L${level} 20 个不同种子`, seedsByLevel[level].size === 20, 'unique=' + seedsByLevel[level].size);
   }
+
+  // ---- 行列式：不允许 1^n，且位置要多样 ----
+  const testExe = path.join(root, 'tests', 'Calculate325-tests.exe');
+  const detCorpus = path.join(tmpDir, 'det-corpus5.jsonl');
+  run(testExe, ['--dump-random', detCorpus, '325', '5', '40', '20261028']);
+  const detRows = fs.readFileSync(detCorpus, 'utf8').trim().split(/\r?\n/).map(JSON.parse);
+  // “底数是裸 1”的幂：前面不能是数字/小数点/字母（排除 1.5^{}、x_{1}^{} 这类）
+  const onePowRe = /(?<![\d.\w])1\s*\^\s*\{/;
+  const onePowBad = detRows.filter(r => onePowRe.test(r.latex));
+  check('L5 不出现 1^n（底数为 1 的幂）', onePowBad.length === 0,
+    onePowBad.length + ' 条' + (onePowBad[0] ? '：' + onePowBad[0].latex.slice(0, 90) : ''));
+
+  const detPos = {
+    分子: /\\frac\{\\det/,
+    分母: /\}\{\\det/,
+    根号: /\\sqrt\{\\det/,
+    积分上限: /\\int_\{0\}\^\{\\det/,
+    求和上限: /\\sum_\{k=1\}\^\{\\det/,
+    乘方: /\\det[^)]*\)\^\{1\}/
+  };
+  const usedPos = Object.keys(detPos).filter(k => detRows.some(r => detPos[k].test(r.latex)));
+  check('行列式出现在 ≥4 种位置', usedPos.length >= 4, usedPos.join(','));
+
+  const withDet = detRows.filter(r => r.latex.includes('\\det')).length;
+  check('L5 多数式子含行列式', withDet >= detRows.length * 0.5, withDet + '/' + detRows.length);
+
+  const detAuditBad = detRows.filter(r => r.audit && !r.audit.ok);
+  check('含行列式的式子仍能通过审计', detAuditBad.length === 0,
+    detAuditBad.length + ' 条' + (detAuditBad[0] ? '：' + detAuditBad[0].audit.why : ''));
 }
 
 console.log('===== 随机模式测试：通过 ' + pass + ' / 失败 ' + fail + ' =====');
