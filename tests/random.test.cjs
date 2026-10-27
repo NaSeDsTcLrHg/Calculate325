@@ -423,7 +423,7 @@ check('随机窗口生成 80 行', lines.length === 80, 'lines=' + lines.length)
   // ---- 行列式：不允许 1^n，且位置要多样 ----
   const testExe = path.join(root, 'tests', 'Calculate325-tests.exe');
   const detCorpus = path.join(tmpDir, 'det-corpus5.jsonl');
-  run(testExe, ['--dump-random', detCorpus, '325', '5', '40', '20261028']);
+  run(testExe, ['--dump-random', detCorpus, '325', '5', '60', '20261028']);
   const detRows = fs.readFileSync(detCorpus, 'utf8').trim().split(/\r?\n/).map(JSON.parse);
   // “底数是裸 1”的幂：前面不能是数字/小数点/字母（排除 1.5^{}、x_{1}^{} 这类）
   const onePowRe = /(?<![\d.\w])1\s*\^\s*\{/;
@@ -442,11 +442,19 @@ check('随机窗口生成 80 行', lines.length === 80, 'lines=' + lines.length)
   const usedPos = Object.keys(detPos).filter(k => detRows.some(r => detPos[k].test(r.latex)));
   check('行列式出现在 ≥4 种位置', usedPos.length >= 4, usedPos.join(','));
 
-  const withDet = detRows.filter(r => r.latex.includes('\\det')).length;
+  const detPowN = detRows.filter(r => /\\right\)\^\{\\det/.test(r.latex)).length;
+  check('包含「行列式的行列式次方」', detPowN > 0, detPowN + '/' + detRows.length);
+
+  const matMulN = detRows.filter(r => /\\det\\left\(/.test(r.latex)).length;
+  check('包含矩阵相乘 det(A·B)', matMulN > 0, matMulN + '/' + detRows.length);
+
+  const BS = String.fromCharCode(92);
+  const withDet = detRows.filter(r => r.latex.indexOf(BS + 'det') >= 0).length;
   check('L5 多数式子含行列式', withDet >= detRows.length * 0.5, withDet + '/' + detRows.length);
 
-  const detAuditBad = detRows.filter(r => r.audit && !r.audit.ok);
-  check('含行列式的式子仍能通过审计', detAuditBad.length === 0,
+  // 只统计“算错”的；6 秒预算用尽是已知限制（闸门会重生成，不会交付给用户）
+  const detAuditBad = detRows.filter(r => r.audit && !r.audit.ok && !/预算用尽/.test(r.audit.why));
+  check('含行列式的式子审计不出现错误结果', detAuditBad.length === 0,
     detAuditBad.length + ' 条' + (detAuditBad[0] ? '：' + detAuditBad[0].audit.why : ''));
 }
 

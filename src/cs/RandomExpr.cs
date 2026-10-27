@@ -1036,22 +1036,43 @@ namespace Calculate325
                 }
             }
 
-            // 行列式多样化（L5）：把链里 1–2 个因子的“显示方式”换成**等值**的行列式写法。
-            // 值不变（还是原来那个因子），所以配平不受影响；但行列式出现在
-            // 分子 / 分母 / 乘方 / 积分上限 / 求和上限 / 根号 等不同位置，且**绝不出现 1^n**。
+            // 行列式位置（L5）分两种生成模式，都不允许 1^n：
+            //   80% 旧模式：行列式只出现在「乘方」和「随机系数」位置（随机系数里含矩阵相乘 det(A·B)）
+            //   20% 新模式：再多出 分子 / 分母 / 积分上下限 / 求和上限 / 根号 等位置
+            // 两种模式都保留：矩阵相乘 det(A·B)、行列式的行列式次方 (det A)^{det B}（det B = 1，底数 ≠ 1）
             if (mix && level == 5)
             {
-                int take = 1 + (int)(Hash32(seed, 92) % 2u);
-                for (int k = 0; k < take && chain.Count > 0; k++)
+                bool oldStyle = Prob100(seed, 88) < 80;
+
+                if (!oldStyle)
                 {
-                    int idx = (int)(Hash32(seed, 93 + k * 5) % (uint)chain.Count);
-                    Rat? v = chain[idx].Exact;
-                    if (!v.HasValue) continue;
-                    int dpDims;
-                    XNode rep = DetEncodedFactor(v.Value, seed, 97 + k * 7, out dpDims);
-                    if (rep == null) continue;
-                    chain[idx] = rep;
-                    dims += dpDims;
+                    int take = 1 + (int)(Hash32(seed, 92) % 2u);
+                    for (int k = 0; k < take && chain.Count > 0; k++)
+                    {
+                        int idx = (int)(Hash32(seed, 93 + k * 5) % (uint)chain.Count);
+                        Rat? v = chain[idx].Exact;
+                        if (!v.HasValue) continue;
+                        int dpDims;
+                        XNode rep = DetEncodedFactor(v.Value, seed, 97 + k * 7, out dpDims);
+                        if (rep == null) continue;
+                        chain[idx] = rep;
+                        dims += dpDims;
+                    }
+                }
+
+                // 行列式的行列式次方：(det A)^{det B}，det B = 1（幺模矩阵），底数 = 因子值 ≠ 1。
+                // 值等于 det A，所以仍然是一个真实因子，不是 1^k。
+                if (Prob100(seed, 89) < 45 && chain.Count > 0)
+                {
+                    int idx2 = (int)(Hash32(seed, 94) % (uint)chain.Count);
+                    Rat? v2 = chain[idx2].Exact;
+                    if (v2.HasValue && v2.Value.D.IsOne
+                        && v2.Value.N >= new BigInteger(2) && v2.Value.N <= new BigInteger(300))
+                    {
+                        int pDims;
+                        XNode pow = DetPowFactor((long)v2.Value.N, seed, 95, out pDims);
+                        if (pow != null) { chain[idx2] = pow; dims += pDims; }
+                    }
                 }
             }
 
@@ -1532,6 +1553,22 @@ namespace Calculate325
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// 行列式的行列式次方：(det A)^{det B}，其中 det B = 1（幺模矩阵）、det A = value。
+        /// 值 = value^1 = value，所以仍是一个真实因子；底数 ≠ 1，不会出现 1^n。
+        /// </summary>
+        static XNode DetPowFactor(long value, string seed, int salt, out int dims)
+        {
+            dims = 0;
+            if (value < 2) return null;
+            int orderA = 2 + (int)(Hash32(seed, salt) % 5u);
+            long[,] a = RandomDetMatrix(seed + "dpA" + salt, orderA, value);
+            int orderB = 2 + (int)(Hash32(seed, salt + 1) % 5u);
+            long[,] b = RandomDetMatrix(seed + "dpB" + salt, orderB, 1);
+            string tex = "\\left(\\det" + MatrixTex(a) + "\\right)^{\\det" + MatrixTex(b) + "}";
+            return new XLeaf(tex, "(det[…])^(det[…])", Rats.FromInt(new BigInteger(value)));
         }
 
         static string MatrixBody(long[,] a)
